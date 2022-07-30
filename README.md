@@ -56,3 +56,19 @@ Para borrar todos los contenedores parados, ejecutamos:
 ```bash
 docker container prune
 ```
+
+## Modo interactivo
+
+Para acceder al modo interactivo de cualquier máquina, haremos la prueba con un sistema Ubuntu:
+
+```bash
+docker run -it ubuntu
+cat /etc/lsb-release
+
+#DISTRIB_ID=Ubuntu
+#DISTRIB_RELEASE=22.04
+#DISTRIB_CODENAME=jammy
+#DISTRIB_DESCRIPTION="Ubuntu 22.04 LTS"
+
+```
+
