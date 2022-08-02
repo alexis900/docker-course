@@ -335,3 +335,102 @@ docker run -d --name app -p 3000:3000 --env MONGO_URL=mongodb://db:27017/test pl
 
 docker network connect networkexample app
 ```
+
+## Docker Compose
+
+Docker Compose es una herramienta para poder levantar una aplicación con los parámetros ya especificados. Este será un fichero llamado *docker-compose.yml* como el que nos encontramos a continuación:
+
+```yml
+version: "3.8" # Obligatorio, es la versión del compose-file.
+
+services: # Obligatorio, Se añaden todos los servicios de nuestra aplicación para poder ejecutarse correctamente.
+  app: # Servicio APP
+    image: platziapp # Especifica la imagen que se usa
+    environment: # Especifica las variables de entorno
+      MONGO_URL: "mongodb://db:27017/test"
+    depends_on: # Este contenedor, depende DB. Si este no se puede levantar, el principal no se levanta
+      - db
+    ports: # Expsición de los puertos especificados
+      - "3000:3000"
+
+  db: # Servicio DB
+    image: mongo # Especifica la imagen que se usa
+```
+
+Para poder hacer un build de un Dockerfile directamente desde el Docker Compose, deberemos de cambiar la opción *image* por *build* y especificar el directorio donde se encuentra este:
+
+```yml
+version: "3.8"
+
+services:
+  app:
+    build: .
+```
+
+Para añadir volumenes, tendremos que añadir a la misma altura que *services* un apartado llamado *volumes*. Como en el siguiente ejemplo.
+
+```yml
+    volumes:
+      - .:/usr/src # Ruta host:Ruta contenedor
+      - /usr/src/node_modules # Rutas a ignorar
+```
+
+Para ejecutar comandos, tendremos que añadir a la misma altura que *services* un apartado llamado *command*. Como en el siguiente ejemplo.
+
+```yml
+    command: npx nodemon -L index.js # Comando que se ejecuta al inicio
+```
+
+Solamente en este caso se deberá de usar el comando, donde a parte, necesitaremos tener nuestro Dockerfile:
+
+```bash
+docker-compose build <nombre_servicio>
+
+# El nombre del servicio es opcional. Si hacemos un cambio en uno de nuestros contenedores, no hace falta hacerlo en todos; podemos especificar el nombre del servicio del cual queremos hacer un build:
+```
+
+Para poder ejecutar el siguiente archivo para crear los contenedores, deberemos de ejecutar el comando:
+
+```bash
+docker-compose up -d
+```
+
+### Comandos de Docker Compose
+
+Igual que en Docker, en Docker Compose podemos ver los servicios/contenedores que se están ejecutando:
+
+```bash
+docker-compose ps
+
+# NAME                COMMAND                  SERVICE             STATUS              PORTS
+# docker-app-1        "docker-entrypoint.s…"   app                 exited (143)
+# docker-db-1         "docker-entrypoint.s…"   db                  exited (0)
+```
+
+También, este, conecta los diferentes servicios en una red. En este caso la podremos consultar con el comando propio de Docker.
+
+Como en Docker, también podemos ver los logs de nuestros servicios con:
+
+```bash
+docker-compose logs <nombre_servicio>
+
+# El nombre del servicio es una flag opcional, donde si lo obviamos nos mostrará el de todos los servicios.
+```
+
+Para hacer un *follow* de los logs, podremos añadirle la opción *-f*. Así se irán actualizando cuando salgan de nuevos.
+
+```bash
+docker-compose logs -f <nombre_servicio>
+```
+
+Para entrar en la Shell de un servicio se tendrá que hacer de la siguiente manera:
+
+```bash
+docker-compose exec <servicio> bash
+```
+
+Para eliminar todo lo que ha creado anteriormente, se tendrá que ejecutar:
+
+```bash
+docker-compose down
+```
