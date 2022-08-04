@@ -57,6 +57,18 @@ Para borrar todos los contenedores parados, ejecutamos:
 docker container prune
 ```
 
+Para borrar todos los contenedores, aunque no estén parados, podemos ejecutar este otro:
+
+```bash
+docker rm -f $(docker ps -aq)
+```
+
+Para poder limpiar el entorno de Docker
+
+```
+docker system prune
+```
+
 ### Modo interactivo
 
 Para acceder al modo interactivo de cualquier máquina, haremos la prueba con un sistema Ubuntu:
@@ -118,8 +130,25 @@ docker stop <id/nombre>
 ```
 
 Para poder borrar el contenedor se usara este otro:
+
 ```bash
 docker rm <id/nombre>
+```
+
+Para poder limitar algún recurso a los contenedores, por ejemplo de memoria con la flag *--memory*, tendremos que ponerlo de la siguiente manera: 
+
+```bash
+docker run -d --name <container_name> --memory <quantity> <image_name>
+
+# Ejemplo
+
+docker run -d --name app --memory 1g platziapp
+```
+
+Donde, para ver el consumo de este, se ejecutará:
+
+```bash
+docker stats
 ```
 
 ### Exponiendo contenedores
@@ -154,7 +183,7 @@ docker run -d --name <nombre_contenedor> -v <punto_montaje_host>:<punto_montaje_
 
 # Ejemplo
 
-docker run -d --name db -v "C:\Users\aleja\Projects\Docker\docker-data\mongodata":/data/db mongo
+docker run -d --name db -v ".\mongodata":/data/db mongo
 ```
 
 En este caso será más seguro crear volumenes por un tema de seguridad, para que Docker no pueda acceder directamente a nuestro disco. Para poder crear los volumenes, deberemos de ejecutar el siguiente comando.
@@ -181,6 +210,13 @@ docker run -d --name <nombre_contenedor> --mount src=<nombre_volumen>,dst=<punt_
 # Ejemplo
 
 docker run -d --name db --mount src=dbdata,dst=/data/db mongo
+
+```
+
+Para poder limpiar todos los volumenes que se estén usando, usaremos el siguiente comando:
+
+```bash
+docker volume prune
 ```
 
 #### Insertar y extraer archivos de un contenedor
@@ -245,7 +281,70 @@ docker build -t <nombre>:<tag> <ruta_dockerfile>
 docker build -t ubuntu:example .
 ```
 
-#### Subir imagen a Dockerhub
+#### EntyPoint vs CMD
+
+El comando ENTRYPOINT es un comando que se ejecutará siempre por defecto; en CMD, como se puede superponer un comando se puede usar como parámetro por defecto.
+
+```dockerfile
+FROM ubuntu:trusty
+ENTRYPOINT ["/bin/ping", "-c", "3"]
+CMD ["localhost"]
+```
+
+#### .dockerignore
+
+El fichero *.dockerignore* nos permite facilmente decidir que archivos queremos que esté en nuestra imagen y cuales no. Funciona igual que *.gitignore*. Un ejemplo de esto puede ser el siguiente archivo:
+
+```text
+*.log
+.dockerignore
+.git
+.gitignore
+build/*
+Dockerfile
+node_modules
+npm-debug.log*
+README.md
+```
+
+#### Build multi-stage
+
+Los multi-stage build en docker, nos permite crear imágenes de build y test, previas a la imágen que usaremos para la publicación de nuestro servicio en producción. También es util para reutilizar las capas usando la caché y optimizar la velocidad de build.
+
+```dockerfile
+FROM node:12 as builder
+
+COPY ["package.json", "package-lock.json", "/usr/src/"]
+
+WORKDIR /usr/src
+
+RUN npm install --only=production
+
+COPY [".", "/usr/src/"]
+
+RUN npm install --only=development
+
+RUN npm run test
+
+
+# Productive image
+FROM node:12
+
+COPY ["package.json", "package-lock.json", "/usr/src/"]
+
+WORKDIR /usr/src
+
+RUN npm install --only=production
+
+COPY --from=builder ["/usr/src/index.js", "/usr/src/"]
+
+EXPOSE 3000
+
+CMD ["node", "index.js"]
+
+```
+
+### Subir imagen a Dockerhub
 
 Para poder subir una imagen a Docker Hub, lo primero que tendremos que hacer es tener una cuenta en dicha plataforma, donde nos tendremos que registrar. Una vez registrados, para loguearnos desde nuestra terminal, necesitamos ejecutar:
 
@@ -336,11 +435,18 @@ docker run -d --name app -p 3000:3000 --env MONGO_URL=mongodb://db:27017/test pl
 docker network connect networkexample app
 ```
 
+Para poder eliminar todas las redes que no se estén usando, podemos ejecutar
+
+```bash
+docker network prune
+```
+
 ## Docker Compose
 
 Docker Compose es una herramienta para poder levantar una aplicación con los parámetros ya especificados. Este será un fichero llamado *docker-compose.yml* como el que nos encontramos a continuación:
 
 ```yml
+docker-compose.yml
 version: "3.8" # Obligatorio, es la versión del compose-file.
 
 services: # Obligatorio, Se añaden todos los servicios de nuestra aplicación para poder ejecutarse correctamente.
@@ -375,6 +481,13 @@ Para añadir volumenes, tendremos que añadir a la misma altura que *services* u
       - /usr/src/node_modules # Rutas a ignorar
 ```
 
+También tenemos la opción para poder tener un rango de puertos, para poder escalar nuestra aplicación entre diferentes contenedores y no hayan conflictos:
+
+```yml
+    ports:
+      - "3000-3001:3000"
+```
+
 Para ejecutar comandos, tendremos que añadir a la misma altura que *services* un apartado llamado *command*. Como en el siguiente ejemplo.
 
 ```yml
@@ -393,6 +506,33 @@ Para poder ejecutar el siguiente archivo para crear los contenedores, deberemos 
 
 ```bash
 docker-compose up -d
+```
+
+En el caso que tengamos que escalar esta aplicación para tener dos contenedores de una misma aplicación, podemos añadirle las siguientes *flags*:
+
+```bash
+docker-compose up -d --scale app=2
+
+# 0abdef73c48f   platziapp   "docker-entrypoint.s…"   6 minutes ago   Up 5 minutes   0.0.0.0:3001->3000/tcp   docker_app_2
+# c8d389f08eb3   platziapp   "docker-entrypoint.s…"   6 minutes ago   Up 6 minutes   0.0.0.0:3000->3000/tcp   docker_app_1
+# 9e3dffdcba15   mongo       "docker-entrypoint.s…"   6 minutes ago   Up 6 minutes   27017/tcp                docker_db_1
+```
+
+### Override
+
+Podemos crear un fichero Docker Compose llamado *docker-compose.override.yml* para sobreescribir alguna de la configuración del fichero original *docker-compose.yml*. Esto último se puede usar para tener una configuración segura y no guardar los cambios en el repositorio git, donde también se podrán combinar.
+
+Este fichero puede quedar como este:
+
+```yml
+docker-compose.override.yml
+version: '3.8'
+
+services:
+    app:
+      build: .
+      environment:
+        UNA_VAR: "Hola Mundo"
 ```
 
 ### Comandos de Docker Compose
@@ -418,7 +558,7 @@ docker-compose logs <nombre_servicio>
 ```
 
 Para hacer un *follow* de los logs, podremos añadirle la opción *-f*. Así se irán actualizando cuando salgan de nuevos.
-
+ 
 ```bash
 docker-compose logs -f <nombre_servicio>
 ```
@@ -434,3 +574,7 @@ Para eliminar todo lo que ha creado anteriormente, se tendrá que ejecutar:
 ```bash
 docker-compose down
 ```
+
+## Docker in Docker
+
+Con Docker in Docker conseguimos montar y correr un contenedor de docker dentro de un contenedor de docker
