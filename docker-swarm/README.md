@@ -4,7 +4,6 @@ Docker-Swarm es una solución para balancear la carga automáticamente. La soluc
 
 Para ejecutar aplicaciones productivas, esta aplicación tiene que estar lista para poder servir a los usuarios en todo momento, a pesar de situaciones catastroficas o de alta demanda.
 
-
 ## Escalabilidad
 
 La capacidad de aumentar la potencia de computo a medida que la demanda avanza.
@@ -69,4 +68,3 @@ Los requisitos para poder ejecutar nuestras aplicaciones deberian de ser:
 * Logs: Todos los logs deben tratarso como un flujo de device. Tiene que cumplir el Standard Output.
 
 * Admin processes: La aplicación debe poder ejecutar procesos como independientes.
-

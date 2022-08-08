@@ -65,7 +65,7 @@ docker rm -f $(docker ps -aq)
 
 Para poder limpiar el entorno de Docker
 
-```
+```bash
 docker system prune
 ```
 
@@ -135,7 +135,7 @@ Para poder borrar el contenedor se usara este otro:
 docker rm <id/nombre>
 ```
 
-Para poder limitar algún recurso a los contenedores, por ejemplo de memoria con la flag *--memory*, tendremos que ponerlo de la siguiente manera: 
+Para poder limitar algún recurso a los contenedores, por ejemplo de memoria con la flag *--memory*, tendremos que ponerlo de la siguiente manera:
 
 ```bash
 docker run -d --name <container_name> --memory <quantity> <image_name>
@@ -558,7 +558,7 @@ docker-compose logs <nombre_servicio>
 ```
 
 Para hacer un *follow* de los logs, podremos añadirle la opción *-f*. Así se irán actualizando cuando salgan de nuevos.
- 
+
 ```bash
 docker-compose logs -f <nombre_servicio>
 ```
@@ -577,4 +577,4 @@ docker-compose down
 
 ## Docker in Docker
 
-Con Docker in Docker conseguimos montar y correr un contenedor de docker dentro de un contenedor de docker
+Con Docker in Docker conseguimos montar y correr un contenedor de docker dentro de un contenedor de docker.
