@@ -1,6 +1,6 @@
-# Docker-Swarm 🐳
+# Docker Swarm 🐳
 
-Docker-Swarm es una solución para balancear la carga automáticamente. La solucón de clustering nativa que ofrece Docker para que nosotros, administradores y desarrolladores solo vean un Docker deamos.
+Docker Swarm es una solución para balancear la carga automáticamente. La solucón de clustering nativa que ofrece Docker para que nosotros, administradores y desarrolladores solo vean un Docker deamon.
 
 Para ejecutar aplicaciones productivas, esta aplicación tiene que estar lista para poder servir a los usuarios en todo momento, a pesar de situaciones catastroficas o de alta demanda.
 
@@ -68,3 +68,146 @@ Los requisitos para poder ejecutar nuestras aplicaciones deberian de ser:
 * Logs: Todos los logs deben tratarso como un flujo de device. Tiene que cumplir el Standard Output.
 
 * Admin processes: La aplicación debe poder ejecutar procesos como independientes.
+
+## Comandos iniciales
+
+Para poder iniciar el Swarm de Docker, donde iniciará nuestro nodo como un Manager:
+
+```bash
+docker swarm init
+```
+
+Para poder añadir un Worker Node, deberemos ejecutar:
+
+```bash
+docker swarm join --token <token> <worker_ip>:<worker_port>
+
+# Ejemplo
+
+docker swarm join --token <token> 127.0.0.1:2377
+```
+
+Para añadir Manager Nodes, deberemos ejecutar:
+
+```bash
+docker swarm join-token manager
+
+# Este comando nos mostrará el comando a ejecutar, con el tocken correspondiente. 
+
+docker swarm join --token <token> <manager_ip>:<manager_port>
+```
+
+Para poder listar nuestros nodos, donde nos mostrará el ID de este nodo, hostname, estado, disponibilidad, tipo de manager y la versión del Docker deamon; tendremos que ejecutar:
+
+```bash
+docker node ls
+```
+
+Para poder inspeccionar la configuración del nodo, deberemos de ejecutar:
+
+```bash
+docker node inspect <ID/self>
+
+docker node inspect --pretty self
+
+# En este caso, deberemos de poner el ID del nodo. Si por ejemplo ya estamos en una conexión SSH dentro del nodo a administrar, podemos especificar *self* para indicar el mismo nodo
+
+# La flag *--pretty* se utiliza para imprimir la información estructurada. Esta opción puede llegar a ocultar información.
+```
+
+Para abandonar el Swarm
+
+```bash
+docker swarm leave
+
+# Si aparece el siguiente error, significa que estamos intentando salir como nodo Manager.
+
+# Error response from daemon: You are attempting to leave the swarm on a node that is participating as a manager. Removing the last manager erases all current state of the swarm. Use `--force` to ignore this message.
+
+# Para forzar la salida de este swarm, añadiremos el flag *--force*.
+
+docker swarm leave -f
+
+# Node left the swarm.
+```
+
+Si un Worker Node se va de un Swarm, los Manager Node los pondrán a correr en otros Worker Node. Si se va un Manager Node, hay riesgo de perder y sea irrecuperable el propio Swarm.
+
+Para poder ver el estado de Swarm, si está inactivo o no, podemos ejecutar el siguiente comando:
+
+```bash
+docker info | grep Swarm
+
+#  Swarm: active
+```
+
+## Fundamentos de Docker Swarm
+
+### Servicios
+
+En Swarm no se corren contenedores manualmente, se declaran los servicios que se desean correr.
+
+Para crear un servicio, se deberá de ejecutar de la siguiente manera el la terminal
+
+```bash
+docker service create --name <name> <image> <command>
+
+# Ejemplo
+
+docker service create --name pinger alpine ping www.google.com
+
+## Alpine es una distribución Linux muy ligera orientada a la seguridad.
+```
+
+Para poder ver los servicios que están corriendo, debemos ejecutar este otro comando:
+
+```bash
+docker service ls
+```
+
+#### Ciclo de vida
+
+Desde el cliente, *docker service create* le envía al Manager Node el servicio: se crea, verifica cuantas tareas tendrá, se le otorga una dirección IP virtual y asigna la tarea a los nodos; esta información es recibida por los Worker Node, que es quien prepara la tarea y seguidamente ejecuta los contenedores.
+Para poder ver estos servicios, se deberá de ejecutar:
+
+```bash
+docker service ps <service_name>
+
+# Ejemplo
+
+docker service ps pinger
+```
+
+Para poder inspeccionar el servicio, podemos ejecutar:
+
+```bash
+docker service inspect <service_name>
+
+# Ejemplo
+
+docker service inspect pinger
+```
+
+Para ver los logs de un servicio, se puede ejecutar:
+
+```bash
+docker service logs <service_name> -f
+
+# Ejemplo
+
+docker service logs pinger -f
+
+## La opción *-f* se utiliza para hacer *follow* a dichos logs
+```
+
+Para poder borrar el servicio, se utiliza:
+
+```bash
+docker service rm <service_name>
+
+# Ejemplo
+
+docker service rm pinger
+
+## Este comando elimina el servicio, pero el contenedor lo deja ejecutando durante unos segundos más.
+```
