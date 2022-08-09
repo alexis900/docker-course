@@ -211,3 +211,124 @@ docker service rm pinger
 
 ## Este comando elimina el servicio, pero el contenedor lo deja ejecutando durante unos segundos más.
 ```
+
+#### Administración
+
+Para poder escalar y administrar los servicios entre diferentes nodos, se utiliza:
+
+```bash
+docker service scale <service_name>=<number_of_replicas>
+
+# Ejemplo
+
+docker service scale pinger=5
+
+# o
+
+docker service update --replicas=<number_of_replicas> <service_name>
+
+# Ejemplo
+
+docker service update --replicas=20 pinger
+```
+
+Para poder actualizar en caliente un servicio, cambiar su configuración, donde su imagen es parte de su configuración, ejecutamos:
+
+```bash
+docker service update --args <new_arguments> <service>
+
+# Ejemplo
+
+docker service update --args "ping www.amazon.com" pinger
+```
+
+Para poder volver a la versión anterior del servicio, deberemos usar:
+
+```bash
+docker service rollback <service>
+
+# Ejemplo
+
+docker service rollback pinger
+```
+
+Cuando ejecutamos *docker service inspect <service_name>*, en el apartado de *UpdateConfig* y *RollbackConfig*, nos encontraremos algo como lo que nos aparece en el siguiente texto:
+
+```json
+            "UpdateConfig": {
+                "Parallelism": 1, // Indica cuantos contenedores puede hacer a la vez
+                "FailureAction": "pause", // Indica las acciones que hará si la acción falla.
+                "Monitor": 5000000000, // Indica la ventana de tiempo, en nanosegundos, que queremos dar al Docker Swarm para determinar si falla o no.
+                "MaxFailureRatio": 0, // Indica el % de tareas, cuando falla, que quiero actualizar considero un fallo y hago un rollback. 
+                "Order": "stop-first" // Indica que hacer, el orden en el que se ejecuta.
+                // Si este apartado se encuentra en stop-first, primero destruirá el contenedor y lo volverá a crear
+                // Si se encuentra en start-first, primero creará un nuevo contenedor y elimina el antiguo
+            },
+            "RollbackConfig": {
+                "Parallelism": 1,
+                "FailureAction": "pause",
+                "Monitor": 5000000000,
+                "MaxFailureRatio": 0,
+                "Order": "stop-first"
+            },
+
+```
+
+Para poder actualizar diferentes apartados, podemos utilizar estas flags:
+
+```bash
+docker service update --update-parallelism 4 --update-order start-first --update-failure-action rollback --update-max-failure-ratio 0.5 pinger
+```
+
+Con estos cambios, esta configuración quedará de la siguiente manera:
+
+```json
+            "UpdateConfig": {
+                "Parallelism": 4,
+                "FailureAction": "rollback",
+                "Monitor": 5000000000,
+                "MaxFailureRatio": 0.5,
+                "Order": "start-first"
+            },
+```
+
+Para cambiar la configuración de *RollbackConfig*
+
+```bash
+docker service update --rollback-parallelism 0 --rollback-order start-first pinger
+```
+
+Con esta última actualización, deberemos de tener *inspect* del servicio de esta manera:
+
+```json
+"RollbackConfig": {
+                "Parallelism": 0,
+                "FailureAction": "pause",
+                "Monitor": 5000000000,
+                "MaxFailureRatio": 0,
+                "Order": "start-first"
+            },
+```
+
+## Servicios reales
+
+Para poder ejecutar una aplicación productiva en contenedores, lo primero que deberemos de hacer es subirla a nuestro repositorio en la nube. En este caso nosotros usamos Docker Hub.
+
+Lo primero que deberemos hacer es crear nuestra imager con el Dockerfile, así la dejaremos lista para subirla:
+
+```bash
+docker build -t <username>/<image> .
+```
+
+Seguidamente, procederemos a subirla al repositorio con el mismo nombre de imágen:
+
+```bash
+docker push <username>/<image>
+```
+
+Para crear el servicio en Docker Swarm, usando dicha imagen, deberemos de hacerlo de la siguiente manera:
+
+```bash
+docker service create -d --name <service_name> --publish <port_host>:<port_swarm> --replicas=<num_replicas> <username>/<image>
+```
+
