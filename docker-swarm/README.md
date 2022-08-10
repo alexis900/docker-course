@@ -332,3 +332,131 @@ Para crear el servicio en Docker Swarm, usando dicha imagen, deberemos de hacerl
 docker service create -d --name <service_name> --publish <port_host>:<port_swarm> --replicas=<num_replicas> <username>/<image>
 ```
 
+## Routing Mesh
+
+Routing Mesh nos ayuda a que, teniendo un servicio escalado en swarm que tiene más nodos que servicios y esos servicios están expuestos a un solo puerto; cuando hacemos una petición en ese puerto, de alguna manera, la petición llega y no se pierde en algún nodo que no puede contenerlo en ese puerto o en un contenedor.
+
+Esto ayuda a llevar la petición no se pierda y que no se pierda si la cantidad de contenedores es diferente a la cantidad de nodos.
+
+## Restricciones de despliegue
+
+Para que nuestros servicios solo se puedan ejecutar en nodos de dichos roles, managers o workers, deberemos de especificarlo actualizando el servicio o cuando creamos dicho servicio:
+
+En el siguiente ejemplo, podemos ver como podemos crear el servicio *viz*. Este servicio, contendrá la imagen *dockersamples/visualizer* para poder controlar nuestro docker swarm visualmente. Este servicio, tal y como se especifica en el *node.role* solamente lo podrán ejecutar los que tengan el rol de *manager*. También, para que pueda mostrar correctamente esta interfaz, tendremos que agregarle el Sock de Docker.
+
+```bash
+docker service create -d --name viz -p 8080:8080 --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock dockersamples/visualizer
+```
+
+![Docker visualizer](./static/visualizer.png)
+
+Para actualizar nuestro servicio *app* para que pueda ejecutarse solamente en nodos con rol **worker**, también deberemos especificarlo.
+
+```bash
+docker service update --constraint-add node.role==worker --update-parallelism=0 app
+```
+
+## Disponibilidad de los nodos
+
+En este ejemplo, queremos hacer mantenimiento en el Worker 1. En el Worker 1 debemos de drenar o apagar todos los contendores de dicho Worker, así que los tenemos que pasar a los demás.
+
+```bash
+docker node update --availability drain worker1
+```
+
+Una vez acabado el mantenimiento, volveremos a poner el Worker 1 para que esté activo:
+
+```bash
+docker node update --availability active worker1
+```
+
+![Worker 1 Drained](./static/visualizer-drained.png)
+
+El problema que presentamos ahora, es que no se encienden los contenedores de Worker 1, solo están en Worker 2 y 3. Para que vuelvan también al Worker 1, deberemos de forzar la actualización del servicio para que tenga que replanificar. Para lograrlo podemos hacerlo de dos maneras:
+
+```bash
+docker service update -d --env-add UNA_VARIABLE=de-entorno app
+
+# O
+
+docker service update app --force
+```
+
+![Worker 1 Available](./static/visualizer-available.png)
+
+## Redes y Service Discovery
+
+Cuando tenemos un Docker Swarm, tenemos que tener presente que creará 2 redes adicionales por defecto; estas redes serán: *docker_gwbridge* y *ingress*. Este útlimo es más especifico a Swarm, donde tiene el driver *overlay* y Scope *swarm*, para interconectar servicios.
+
+```text
+NETWORK ID     NAME              DRIVER    SCOPE
+9d3968cd08c7   docker_gwbridge   bridge    local
+tiycl7teixjz   ingress           overlay   swarm
+```
+
+Para crear una red overlay, solamente tendremos que coger el comando interno de Docker añadiendo la flag *--driver* con el parámetro *overlay*:
+
+```bash
+docker network create --driver overlay <network_name>
+
+# Ejemplo
+
+docker network create --driver overlay app-net
+```
+
+Como ejemplo, hemos utilizado una aplicación donde está alojada en *alexis900/networking* junto a la imágen de Mongo:
+
+```bash
+docker build -t alexis900/networking .
+docker push alexis900/networking
+docker service create -d --name db --network app-net mongo
+docker service create -d --name app --network app-net -p 3000:3000 alexis900/networking
+docker service update --env-add MONGO_URL=mongodb://db/test app
+```
+
+## Docker Swarm Stack
+
+Los Docker Swarm Stacks es un fichero para controlar cómo se van a desplegar los servicios utilizando los stacks. Son muy parecidos a los ficheros Docker Compse.
+
+```yaml
+version: "3"
+
+services:
+  app:
+    image: gvilarino/swarm-networking
+    environment:
+      MONGO_URL: "mongodb://db:27017/test"
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+
+  db:
+    image: mongo
+```
+
+Para correr con Docker Swarm utilizamos *docker stack* de la siguiente manera:
+
+```bash
+docker stack deploy --compose-file stackfile.yml app
+```
+
+En la configuración del servicio podemos añadir el parámetro de Deploy / Placement / Constraints, donde se puede especificar los diferentes parámetros que usabamos anteriormente para indicar el worker. Este podrá ser utilizado para Docker Compose, exceptuando esta opción de Deploy.
+
+```yaml
+    deploy:
+      placement:
+        constraints: [node.role==worker]
+```
+
+Para poder listar los Stacks, utilitzaremos el siguiente comando:
+
+```bash
+docker stack ls
+```
+
+Para eliminar el Stack, deberemos de usar este otro comando:
+
+```bash
+docker stack rm app
+```
