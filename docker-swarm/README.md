@@ -460,3 +460,52 @@ Para eliminar el Stack, deberemos de usar este otro comando:
 ```bash
 docker stack rm app
 ```
+
+## Reverse proxy
+
+Un reverse Proxy, donde un servicio está escuchando toma la decisión hace un proxy hacia uno de estos servicios. Ens este caso utilizaremos una herramienta llamada traefik.
+
+Para poder instalar el servicio correctamente, deberemos de ejecutar el siguiente comando:
+
+```bash
+docker service create --name <service_name> --constraint=node.role==manager -p 80:80 -p <host_port>:8080 --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --network <netwrok_name> traefik:v1.7 --docker --docker.swarmmode --docker.domain=<dominio> --docker.watch --api
+
+# Ejemplo
+
+docker service create --name proxy --constraint=node.role==manager -p 80:80 -p 9090:8080 --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --network proxy-net traefik:v1.7 --docker --docker.swarmmode --docker.domain=alexis.com --docker.watch --api
+```
+
+Para poder verificar que funciona correctamente nuestras aplicaciones, podremos ejecutar el comando *curl* en el propio Host.
+
+```bash
+curl -H "Host: app1.alexis.com" localhost
+# Saludos desde 04c6423f5a73!
+```
+
+Para actualizar la imágen de un servicio, se puede usar el siguiente comando:
+
+```bash
+docker service update --image alexis900/networking app2
+```
+
+## Docker Swarm en producción
+
+Los Docker Node entre Manager y Worker deberian de ser impares; si por ejemplo si tenemos 3 managers, que es el mínimo que deberiamos de tener, donde uno es el líder de los Managers y el resto lo siguen. Cada cierto tiempo, los propios Managers hacen 'votaciones democráticas', utilizando el algorítzo graft, para ver quien es el siguiente líder para rotar entre todos los Managers.
+
+## Administración remota de Docker Swarm
+
+Para administrar remotamente un Docker Swarm en un entorno productivo podemos utilizar un entorno visual llamada Portainer.
+
+```bash
+docker volume create portainer_data
+
+docker service create --name portainer -p 9000:9000 --constraint node.role==manager --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock --mount type=volume,src=portainer_data,dst=/data portainer/portainer-ce -H unix:///var/run/docker.sock
+```
+
+## Mantenimiento del Swarm
+
+--mode global, añade un contenedor de estos siempre.
+
+docker service create --detach -e CLEAN_PERIOD=900 -e DELAY_TIME=600 --log-driver json-file --log-opt max-size=1m --log-opt=max-file=2 --name cleanup --mode global --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock meltwater/docker-cleanup
+
+`https://github.com/stefanprodan/swarmprom`
